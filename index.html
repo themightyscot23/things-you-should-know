@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Things You Should Know</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header id="top-bar">
+    <a href="#home" class="logo">Things You Should Know</a>
+    <div class="stats-bar">
+      <span id="xp-display" title="Experience Points">&#9889; 0 XP</span>
+      <span id="streak-display" title="Daily Streak">&#128293; 0 days</span>
+      <span id="level-display" title="Level">Lvl 1</span>
+    </div>
+    <nav>
+      <a href="#home">Home</a>
+      <a href="#stats">Stats</a>
+      <a href="#settings">Settings</a>
+    </nav>
+  </header>
+
+  <!-- Screen: Home / Chapter Selection -->
+  <main id="screen-home" class="screen">
+    <h1>Choose a Chapter</h1>
+    <div id="chapter-grid" class="chapter-grid"></div>
+  </main>
+
+  <!-- Screen: Quiz -->
+  <main id="screen-quiz" class="screen" style="display:none">
+    <div id="quiz-header">
+      <button id="btn-back" class="btn-secondary">&#8592; Back</button>
+      <span id="quiz-chapter-title"></span>
+      <span id="quiz-progress">Card 1 / 20</span>
+      <span id="quiz-score">Score: 0</span>
+    </div>
+
+    <div id="flashcard-container">
+      <div id="flashcard" class="flashcard">
+        <div class="flashcard-inner">
+          <div class="flashcard-front" id="card-front">
+            <div class="card-subcategory" id="card-subcategory"></div>
+            <div class="card-content" id="card-front-content"></div>
+            <div class="card-hint" id="card-hint"></div>
+          </div>
+          <div class="flashcard-back" id="card-back">
+            <div class="card-content" id="card-back-content"></div>
+            <div class="card-notes" id="card-notes"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls for term cards -->
+    <div id="term-controls" class="quiz-controls">
+      <button id="btn-hint" class="btn-secondary">Hint</button>
+      <button id="btn-reveal" class="btn-primary">Reveal Answer</button>
+    </div>
+
+    <!-- Self-grading after reveal -->
+    <div id="self-grade" class="quiz-controls" style="display:none">
+      <p>How did you do?</p>
+      <div class="grade-buttons">
+        <button id="btn-wrong" class="btn-wrong">Didn't Know</button>
+        <button id="btn-close" class="btn-close">Almost</button>
+        <button id="btn-correct" class="btn-correct">Got It!</button>
+      </div>
+    </div>
+
+    <!-- Multiple choice options -->
+    <div id="mc-controls" class="quiz-controls" style="display:none">
+      <div id="mc-options" class="mc-options"></div>
+    </div>
+
+    <!-- Fill in the blank -->
+    <div id="fill-controls" class="quiz-controls" style="display:none">
+      <div class="fill-blank-row">
+        <input type="text" id="fill-input" placeholder="Type your answer..." autocomplete="off">
+        <button id="btn-submit-answer" class="btn-primary">Submit</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Screen: Results -->
+  <main id="screen-results" class="screen" style="display:none">
+    <div id="results-content"></div>
+  </main>
+
+  <!-- Screen: Stats -->
+  <main id="screen-stats" class="screen" style="display:none">
+    <div id="stats-content"></div>
+  </main>
+
+  <!-- Screen: Settings -->
+  <main id="screen-settings" class="screen" style="display:none">
+    <div id="settings-content"></div>
+  </main>
+
+  <!-- Toast notifications -->
+  <div id="toast-container"></div>
+
+  <!-- Data files -->
+  <script src="data/chapters.js"></script>
+  <script src="data/spanish.js"></script>
+  <script src="data/french.js"></script>
+  <script src="data/portuguese.js"></script>
+  <script src="data/countries.js"></script>
+  <script src="data/periodic-table.js"></script>
+  <script src="data/history.js"></script>
+
+  <!-- Application JS -->
+  <script src="js/router.js"></script>
+  <script src="js/gamification.js"></script>
+  <script src="js/quiz.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
