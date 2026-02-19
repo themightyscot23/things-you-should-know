@@ -36,18 +36,15 @@ var QuizEngine = (function() {
       if (history) {
         var totalCorrect = history.correct || 0;
         var totalWrong = history.wrong || 0;
-        var totalClose = history.close || 0;
 
-        if (totalCorrect >= 3 && totalWrong === 0 && totalClose === 0) {
+        if (totalCorrect >= 3 && totalWrong === 0) {
           weight = 0.3; // mastered
         } else if (totalCorrect >= 3) {
           weight = 0.5; // mostly mastered but has had mistakes
         } else if (totalWrong > totalCorrect) {
           weight = 3; // struggling
-        } else if (totalClose > 0) {
-          weight = 2; // close but not solid
         } else {
-          weight = 1; // seen and gotten right a few times
+          weight = 1; // seen and making progress
         }
       }
 
@@ -131,11 +128,9 @@ var QuizEngine = (function() {
         result: result
       });
 
-      // Calculate XP
+      // Calculate XP — correct earns points, wrong earns nothing
       var xp = 0;
       if (result === "correct") { xp = 10; _state.score++; }
-      else if (result === "close") { xp = 5; }
-      else { xp = 2; }
 
       _state.xpEarned += xp;
 

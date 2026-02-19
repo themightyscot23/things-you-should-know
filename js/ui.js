@@ -7,6 +7,14 @@ var UI = (function() {
   // Cached DOM elements
   var _els = {};
 
+  // Timer state
+  var _timerInterval = null;
+  var _timerSeconds = 0;
+  var TIMER_DURATION = 15;
+
+  // Card state
+  var _cardLocked = false;
+
   function _cache() {
     _els.chapterGrid = document.getElementById("chapter-grid");
     _els.quizHeader = document.getElementById("quiz-header");
@@ -19,19 +27,14 @@ var UI = (function() {
     _els.subcategory = document.getElementById("card-subcategory");
     _els.hint = document.getElementById("card-hint");
     _els.notes = document.getElementById("card-notes");
-    _els.termControls = document.getElementById("term-controls");
-    _els.selfGrade = document.getElementById("self-grade");
-    _els.mcControls = document.getElementById("mc-controls");
-    _els.mcOptions = document.getElementById("mc-options");
-    _els.fillControls = document.getElementById("fill-controls");
-    _els.fillInput = document.getElementById("fill-input");
-    _els.btnReveal = document.getElementById("btn-reveal");
-    _els.btnHint = document.getElementById("btn-hint");
+    _els.answerControls = document.getElementById("answer-controls");
+    _els.answerInput = document.getElementById("answer-input");
+    _els.btnSubmit = document.getElementById("btn-submit");
+    _els.btnDontKnow = document.getElementById("btn-dont-know");
+    _els.timerBar = document.getElementById("timer-bar");
+    _els.timerFill = document.getElementById("timer-fill");
+    _els.timerText = document.getElementById("timer-text");
     _els.btnBack = document.getElementById("btn-back");
-    _els.btnCorrect = document.getElementById("btn-correct");
-    _els.btnClose = document.getElementById("btn-close");
-    _els.btnWrong = document.getElementById("btn-wrong");
-    _els.btnSubmitAnswer = document.getElementById("btn-submit-answer");
     _els.resultsContent = document.getElementById("results-content");
     _els.statsContent = document.getElementById("stats-content");
     _els.settingsContent = document.getElementById("settings-content");
@@ -96,19 +99,177 @@ var UI = (function() {
     }
   }
 
-  // === Flashcard Rendering ===
+  // === Fuzzy Matching ===
 
-  var _currentCardType = "term";
-  var _cardRevealed = false;
+  function _levenshtein(a, b) {
+    var matrix = [];
+    for (var i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+    for (var j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+    for (var i2 = 1; i2 <= b.length; i2++) {
+      for (var j2 = 1; j2 <= a.length; j2++) {
+        if (b.charAt(i2 - 1) === a.charAt(j2 - 1)) {
+          matrix[i2][j2] = matrix[i2 - 1][j2 - 1];
+        } else {
+          matrix[i2][j2] = Math.min(
+            matrix[i2 - 1][j2 - 1] + 1,
+            matrix[i2][j2 - 1] + 1,
+            matrix[i2 - 1][j2] + 1
+          );
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  }
+
+  function _normalize(str) {
+    if (!str) return "";
+    return str
+      .toLowerCase()
+      .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+      .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "")
+      .replace(/\s*\(.*?\)\s*/g, " ")
+      .replace(/\s*\u2014.*$/g, "")
+      .replace(/[^\w\s\u00C0-\u024F]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function _fuzzyMatch(userAnswer, expectedAnswer) {
+    var a = _normalize(userAnswer);
+    var b = _normalize(expectedAnswer);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    var maxLen = Math.max(a.length, b.length);
+    if (maxLen === 0) return true;
+    var distance = _levenshtein(a, b);
+    var similarity = 1 - (distance / maxLen);
+    return similarity >= 0.8;
+  }
+
+  function _getExpectedAnswer(card) {
+    if (card.type === "fill-blank") {
+      return { primary: card.answer, alternates: card.acceptAlso || [] };
+    } else if (card.type === "multiple-choice") {
+      return { primary: card.options[card.correctIndex], alternates: [] };
+    } else {
+      // term cards — use the back field
+      return { primary: card.back, alternates: [] };
+    }
+  }
+
+  // === Timer ===
+
+  function _startTimer() {
+    _timerSeconds = TIMER_DURATION;
+    _els.timerBar.style.display = "flex";
+    _els.timerFill.style.width = "100%";
+    _els.timerFill.className = "timer-bar-fill";
+    _els.timerText.textContent = _timerSeconds + "s";
+
+    _timerInterval = setInterval(function() {
+      _timerSeconds--;
+      _els.timerText.textContent = _timerSeconds + "s";
+
+      var pct = (_timerSeconds / TIMER_DURATION) * 100;
+      _els.timerFill.style.width = pct + "%";
+
+      if (_timerSeconds <= 5) {
+        _els.timerFill.className = "timer-bar-fill timer-danger";
+      } else if (_timerSeconds <= 10) {
+        _els.timerFill.className = "timer-bar-fill timer-warning";
+      }
+
+      if (_timerSeconds <= 0) {
+        _stopTimer();
+        _onTimerExpire();
+      }
+    }, 1000);
+  }
+
+  function _stopTimer() {
+    if (_timerInterval) {
+      clearInterval(_timerInterval);
+      _timerInterval = null;
+    }
+  }
+
+  function _onTimerExpire() {
+    if (_cardLocked) return;
+    _cardLocked = true;
+    _showResult(false);
+  }
+
+  // === Unified Answer Checking ===
+
+  function _checkAnswer() {
+    if (_cardLocked) return;
+
+    var card = QuizEngine.getCurrentCard();
+    if (!card) return;
+
+    var userAnswer = _els.answerInput.value.trim();
+    if (!userAnswer) return;
+
+    _cardLocked = true;
+    _stopTimer();
+
+    var expected = _getExpectedAnswer(card);
+    var correct = _fuzzyMatch(userAnswer, expected.primary);
+
+    // Check alternates if primary didn't match
+    if (!correct && expected.alternates.length > 0) {
+      for (var i = 0; i < expected.alternates.length; i++) {
+        if (_fuzzyMatch(userAnswer, expected.alternates[i])) {
+          correct = true;
+          break;
+        }
+      }
+    }
+
+    _showResult(correct);
+  }
+
+  function _giveUp() {
+    if (_cardLocked) return;
+    _cardLocked = true;
+    _stopTimer();
+    _showResult(false);
+  }
+
+  function _showResult(correct) {
+    // Flip the card with colored border
+    _els.flashcard.classList.add("flipped");
+    _els.flashcard.classList.add(correct ? "answer-correct" : "answer-wrong");
+
+    // Hide answer controls
+    _els.answerControls.style.display = "none";
+    _els.timerBar.style.display = "none";
+
+    // Disable input
+    _els.answerInput.disabled = true;
+
+    // Submit result to quiz engine
+    var result = correct ? "correct" : "wrong";
+    QuizEngine.submitResult(result);
+
+    // Auto-advance after delay (longer for wrong so user can read the answer)
+    var delay = correct ? 1200 : 2000;
+    setTimeout(function() {
+      _advanceOrFinish();
+    }, delay);
+  }
+
+  // === Card Rendering (unified for all card types) ===
 
   function renderCard(card, sessionInfo) {
     if (!card) return;
 
-    _cardRevealed = false;
-    _currentCardType = card.type || "term";
+    _cardLocked = false;
+    _stopTimer();
 
-    // Reset flashcard state
-    _els.flashcard.classList.remove("flipped", "flash-correct", "flash-wrong", "flash-close");
+    // Reset flashcard visual state
+    _els.flashcard.classList.remove("flipped", "answer-correct", "answer-wrong",
+      "flash-correct", "flash-wrong");
 
     // Set content
     _els.subcategory.textContent = card.subcategory || "";
@@ -118,130 +279,27 @@ var UI = (function() {
     _els.hint.classList.remove("visible");
     _els.notes.textContent = card.notes || "";
 
-    // Update progress
+    // Update progress header
     if (sessionInfo) {
       _els.quizProgress.textContent = "Card " + sessionInfo.current + " / " + sessionInfo.total;
       _els.quizScore.textContent = "Score: " + sessionInfo.score;
     }
 
-    // Show/hide controls based on card type
-    _els.termControls.style.display = "none";
-    _els.selfGrade.style.display = "none";
-    _els.mcControls.style.display = "none";
-    _els.fillControls.style.display = "none";
+    // Show unified answer controls
+    _els.answerControls.style.display = "flex";
+    _els.answerInput.value = "";
+    _els.answerInput.disabled = false;
+    _els.answerInput.focus();
 
-    if (_currentCardType === "term") {
-      _els.termControls.style.display = "flex";
-    } else if (_currentCardType === "multiple-choice") {
-      _renderMCOptions(card);
-      _els.mcControls.style.display = "flex";
-    } else if (_currentCardType === "fill-blank") {
-      _els.fillControls.style.display = "flex";
-      _els.fillInput.value = "";
-      _els.fillInput.className = "";
-      _els.fillInput.focus();
-    }
-  }
-
-  function _renderMCOptions(card) {
-    var html = "";
-    for (var i = 0; i < card.options.length; i++) {
-      html += '<button class="mc-option" data-index="' + i + '">' + card.options[i] + '</button>';
-    }
-    _els.mcOptions.innerHTML = html;
-
-    var btns = _els.mcOptions.querySelectorAll(".mc-option");
-    for (var j = 0; j < btns.length; j++) {
-      btns[j].addEventListener("click", function() {
-        if (this.classList.contains("mc-disabled")) return;
-        _handleMCSelect(parseInt(this.getAttribute("data-index")), card);
-      });
-    }
-  }
-
-  function _handleMCSelect(selectedIndex, card) {
-    var btns = _els.mcOptions.querySelectorAll(".mc-option");
-    for (var i = 0; i < btns.length; i++) {
-      btns[i].classList.add("mc-disabled");
-      if (i === card.correctIndex) {
-        btns[i].classList.add("mc-correct");
-      }
-      if (i === selectedIndex && i !== card.correctIndex) {
-        btns[i].classList.add("mc-wrong");
-      }
-    }
-
-    // Flip card to show back
-    _els.flashcard.classList.add("flipped");
-    _cardRevealed = true;
-
-    var result = selectedIndex === card.correctIndex ? "correct" : "wrong";
-    _flashFeedback(result);
-
-    // Auto-advance after a delay
-    setTimeout(function() {
-      QuizEngine.submitResult(result);
-      _advanceOrFinish();
-    }, 1500);
-  }
-
-  function _handleFillSubmit() {
-    var card = QuizEngine.getCurrentCard();
-    if (!card) return;
-
-    var userAnswer = _els.fillInput.value.trim();
-    if (!userAnswer) return;
-
-    var correct = userAnswer.toLowerCase() === card.answer.toLowerCase();
-    if (!correct && card.acceptAlso) {
-      for (var i = 0; i < card.acceptAlso.length; i++) {
-        if (userAnswer.toLowerCase() === card.acceptAlso[i].toLowerCase()) {
-          correct = true;
-          break;
-        }
-      }
-    }
-
-    // Check "close" — simple Levenshtein-like check (character overlap)
-    var isClose = false;
-    if (!correct) {
-      var overlap = _charOverlap(userAnswer.toLowerCase(), card.answer.toLowerCase());
-      if (overlap > 0.6) isClose = true;
-    }
-
-    _els.fillInput.classList.add(correct ? "fill-correct" : "fill-wrong");
-    _els.flashcard.classList.add("flipped");
-    _cardRevealed = true;
-
-    if (correct) {
-      _flashFeedback("correct");
-      setTimeout(function() {
-        QuizEngine.submitResult("correct");
-        _advanceOrFinish();
-      }, 1200);
-    } else if (isClose) {
-      _flashFeedback("close");
-      // Show self-grade for close answers
-      _els.fillControls.style.display = "none";
-      _els.selfGrade.style.display = "flex";
+    // Timer mode check
+    var settings = Gamification.getSettings();
+    if (settings.timerMode) {
+      _els.btnDontKnow.style.display = "none";
+      _startTimer();
     } else {
-      _flashFeedback("wrong");
-      setTimeout(function() {
-        QuizEngine.submitResult("wrong");
-        _advanceOrFinish();
-      }, 1500);
+      _els.btnDontKnow.style.display = "inline-block";
+      _els.timerBar.style.display = "none";
     }
-  }
-
-  function _charOverlap(a, b) {
-    if (!a || !b) return 0;
-    var matches = 0;
-    var longer = a.length > b.length ? a : b;
-    var shorter = a.length > b.length ? b : a;
-    for (var i = 0; i < shorter.length; i++) {
-      if (longer.indexOf(shorter[i]) !== -1) matches++;
-    }
-    return matches / longer.length;
   }
 
   function _advanceOrFinish() {
@@ -253,34 +311,6 @@ var UI = (function() {
     }
   }
 
-  function revealCard() {
-    if (_cardRevealed) return;
-    _els.flashcard.classList.add("flipped");
-    _cardRevealed = true;
-    _els.termControls.style.display = "none";
-    _els.selfGrade.style.display = "flex";
-  }
-
-  function showHint() {
-    _els.hint.classList.add("visible");
-  }
-
-  function _flashFeedback(type) {
-    _els.flashcard.classList.add("flash-" + type);
-    setTimeout(function() {
-      _els.flashcard.classList.remove("flash-" + type);
-    }, 800);
-  }
-
-  function gradeCard(result) {
-    _flashFeedback(result);
-    QuizEngine.submitResult(result);
-
-    setTimeout(function() {
-      _advanceOrFinish();
-    }, 400);
-  }
-
   // === Results Screen ===
 
   function renderResults(session) {
@@ -289,10 +319,9 @@ var UI = (function() {
       return;
     }
 
-    var correct = 0, close = 0, wrong = 0;
+    var correct = 0, wrong = 0;
     for (var i = 0; i < session.results.length; i++) {
       if (session.results[i].result === "correct") correct++;
-      else if (session.results[i].result === "close") close++;
       else wrong++;
     }
 
@@ -306,7 +335,6 @@ var UI = (function() {
       + '<div class="results-title">' + titleText + '</div>'
       + '<div class="results-stats">'
       + '  <div class="results-stat"><div class="results-stat-value" style="color:var(--color-success)">' + correct + '</div><div class="results-stat-label">Correct</div></div>'
-      + '  <div class="results-stat"><div class="results-stat-value" style="color:var(--color-close)">' + close + '</div><div class="results-stat-label">Almost</div></div>'
       + '  <div class="results-stat"><div class="results-stat-value" style="color:var(--color-danger)">' + wrong + '</div><div class="results-stat-label">Missed</div></div>'
       + '</div>'
       + '<div class="results-xp">+' + session.xpEarned + ' XP earned</div>'
@@ -386,6 +414,13 @@ var UI = (function() {
       + '  <div><div class="setting-label">Cards per session</div><div class="setting-desc">How many cards in each quiz round</div></div>'
       + '  <div style="display:flex;align-items:center;gap:0.5rem"><input type="range" id="setting-cards" min="5" max="50" step="5" value="' + settings.cardsPerSession + '"><span id="setting-cards-val">' + settings.cardsPerSession + '</span></div>'
       + '</div>'
+      + '<div class="setting-row">'
+      + '  <div><div class="setting-label">Timer mode</div><div class="setting-desc">15-second countdown per card</div></div>'
+      + '  <label class="toggle-switch">'
+      + '    <input type="checkbox" id="setting-timer"' + (settings.timerMode ? ' checked' : '') + '>'
+      + '    <span class="toggle-slider"></span>'
+      + '  </label>'
+      + '</div>'
       + '</div>'
       + '<div class="settings-group"><h2>Data</h2>'
       + '<div class="setting-row">'
@@ -402,6 +437,10 @@ var UI = (function() {
     rangeEl.addEventListener("input", function() {
       rangeVal.textContent = this.value;
       Gamification.updateSettings({ cardsPerSession: parseInt(this.value) });
+    });
+
+    document.getElementById("setting-timer").addEventListener("change", function() {
+      Gamification.updateSettings({ timerMode: this.checked });
     });
 
     document.getElementById("btn-reset-progress").addEventListener("click", function() {
@@ -431,6 +470,7 @@ var UI = (function() {
   // === XP Float Animation ===
 
   function showXPFloat(amount) {
+    if (amount <= 0) return; // Don't show float for 0 XP
     var el = document.createElement("div");
     el.className = "xp-float";
     el.textContent = "+" + amount + " XP";
@@ -449,25 +489,18 @@ var UI = (function() {
     _updateStatsBar();
 
     // Wire up quiz controls
-    _els.btnReveal.addEventListener("click", revealCard);
-    _els.btnHint.addEventListener("click", showHint);
-    _els.btnBack.addEventListener("click", function() { Router.navigate("#home"); });
-
-    _els.btnCorrect.addEventListener("click", function() { gradeCard("correct"); });
-    _els.btnClose.addEventListener("click", function() { gradeCard("close"); });
-    _els.btnWrong.addEventListener("click", function() { gradeCard("wrong"); });
-
-    _els.btnSubmitAnswer.addEventListener("click", _handleFillSubmit);
-    _els.fillInput.addEventListener("keydown", function(e) {
-      if (e.key === "Enter") _handleFillSubmit();
+    _els.btnBack.addEventListener("click", function() {
+      _stopTimer();
+      Router.navigate("#home");
     });
 
-    // Flashcard click to flip (for term cards only when not yet revealed)
-    _els.flashcard.addEventListener("click", function() {
-      if (_currentCardType === "term" && !_cardRevealed) {
-        revealCard();
-      }
+    _els.btnSubmit.addEventListener("click", _checkAnswer);
+
+    _els.answerInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") _checkAnswer();
     });
+
+    _els.btnDontKnow.addEventListener("click", _giveUp);
   }
 
   return {

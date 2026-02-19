@@ -38,7 +38,8 @@ var Gamification = (function() {
 
   function _defaultSettings() {
     return {
-      cardsPerSession: 20
+      cardsPerSession: 20,
+      timerMode: false
     };
   }
 

@@ -54,33 +54,21 @@
       </div>
     </div>
 
-    <!-- Controls for term cards -->
-    <div id="term-controls" class="quiz-controls">
-      <button id="btn-hint" class="btn-secondary">Hint</button>
-      <button id="btn-reveal" class="btn-primary">Reveal Answer</button>
-    </div>
-
-    <!-- Self-grading after reveal -->
-    <div id="self-grade" class="quiz-controls" style="display:none">
-      <p>How did you do?</p>
-      <div class="grade-buttons">
-        <button id="btn-wrong" class="btn-wrong">Didn't Know</button>
-        <button id="btn-close" class="btn-close">Almost</button>
-        <button id="btn-correct" class="btn-correct">Got It!</button>
+    <!-- Timer bar (visible only when timer mode is ON) -->
+    <div id="timer-bar" style="display:none">
+      <div class="timer-bar-bg">
+        <div class="timer-bar-fill" id="timer-fill"></div>
       </div>
+      <span id="timer-text">15s</span>
     </div>
 
-    <!-- Multiple choice options -->
-    <div id="mc-controls" class="quiz-controls" style="display:none">
-      <div id="mc-options" class="mc-options"></div>
-    </div>
-
-    <!-- Fill in the blank -->
-    <div id="fill-controls" class="quiz-controls" style="display:none">
-      <div class="fill-blank-row">
-        <input type="text" id="fill-input" placeholder="Type your answer..." autocomplete="off">
-        <button id="btn-submit-answer" class="btn-primary">Submit</button>
+    <!-- Unified answer controls -->
+    <div id="answer-controls" class="quiz-controls">
+      <div class="answer-row">
+        <input type="text" id="answer-input" placeholder="Type your answer..." autocomplete="off">
+        <button id="btn-submit" class="btn-primary">Submit</button>
       </div>
+      <button id="btn-dont-know" class="btn-secondary">I don't know (yet)</button>
     </div>
   </main>
 

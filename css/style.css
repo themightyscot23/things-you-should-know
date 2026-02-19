@@ -304,13 +304,6 @@ h1 {
   font-size: 0.9rem;
 }
 
-.grade-buttons {
-  display: flex;
-  gap: 0.8rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
 /* === Buttons === */
 button {
   font-family: inherit;
@@ -361,56 +354,57 @@ button:active {
 }
 .btn-wrong:hover { background: var(--color-danger-dark); }
 
-/* === Multiple Choice === */
-.mc-options {
+/* === Timer Bar === */
+#timer-bar {
   display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  width: 100%;
+  flex-direction: row;
+  gap: 0.8rem;
+  align-items: center;
   max-width: 520px;
+  margin: 0 auto 1rem auto;
 }
 
-.mc-option {
-  background: var(--color-surface);
-  border: 2px solid var(--color-border);
-  border-radius: var(--border-radius-sm);
-  padding: 0.9rem 1.2rem;
-  text-align: left;
-  font-size: 1rem;
-  color: var(--color-text);
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-}
-
-.mc-option:hover {
-  border-color: var(--color-primary);
+.timer-bar-bg {
+  flex: 1;
+  height: 8px;
   background: var(--color-surface-2);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-.mc-option.mc-correct {
-  border-color: var(--color-success);
-  background: rgba(46, 204, 113, 0.15);
+.timer-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 4px;
+  transition: width 1s linear;
+  width: 100%;
 }
 
-.mc-option.mc-wrong {
-  border-color: var(--color-danger);
-  background: rgba(231, 76, 60, 0.15);
+.timer-bar-fill.timer-warning {
+  background: var(--color-warning);
 }
 
-.mc-option.mc-disabled {
-  cursor: default;
-  opacity: 0.7;
+.timer-bar-fill.timer-danger {
+  background: var(--color-danger);
 }
 
-/* === Fill in the Blank === */
-.fill-blank-row {
+#timer-text {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  min-width: 30px;
+  text-align: center;
+}
+
+/* === Unified Answer Controls === */
+.answer-row {
   display: flex;
   gap: 0.8rem;
   width: 100%;
   max-width: 520px;
 }
 
-#fill-input {
+#answer-input {
   flex: 1;
   background: var(--color-surface);
   border: 2px solid var(--color-border);
@@ -423,16 +417,73 @@ button:active {
   transition: border-color 0.2s;
 }
 
-#fill-input:focus {
+#answer-input:focus {
   border-color: var(--color-primary);
 }
 
-#fill-input.fill-correct {
-  border-color: var(--color-success);
+#btn-dont-know {
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  opacity: 0.7;
 }
 
-#fill-input.fill-wrong {
-  border-color: var(--color-danger);
+#btn-dont-know:hover {
+  opacity: 1;
+}
+
+/* === Card Answer Feedback (persistent borders on flipped card) === */
+.flashcard.answer-correct .flashcard-back {
+  border: 3px solid var(--color-success);
+  box-shadow: 0 0 20px rgba(46, 204, 113, 0.3);
+}
+
+.flashcard.answer-wrong .flashcard-back {
+  border: 3px solid var(--color-danger);
+  box-shadow: 0 0 20px rgba(231, 76, 60, 0.3);
+}
+
+/* === Toggle Switch === */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--color-surface-2);
+  border-radius: 26px;
+  transition: 0.3s;
+  border: 1px solid var(--color-border);
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 2px;
+  background: var(--color-text);
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--color-primary);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
 }
 
 /* === Results Screen === */
@@ -454,7 +505,7 @@ button:active {
 
 .results-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
   margin-bottom: 2rem;
 }
@@ -673,17 +724,13 @@ input[type="range"] {
   100% { opacity: 0; transform: translateY(-60px); }
 }
 
-/* === Card flip feedback flash === */
+/* === Card flip feedback flash (brief glow) === */
 .flashcard.flash-correct .flashcard-inner {
   box-shadow: 0 0 30px rgba(46, 204, 113, 0.5);
 }
 
 .flashcard.flash-wrong .flashcard-inner {
   box-shadow: 0 0 30px rgba(231, 76, 60, 0.5);
-}
-
-.flashcard.flash-close .flashcard-inner {
-  box-shadow: 0 0 30px rgba(230, 126, 34, 0.5);
 }
 
 /* === Responsive === */
@@ -718,13 +765,8 @@ input[type="range"] {
     font-size: 1.1rem;
   }
 
-  .grade-buttons {
+  .answer-row {
     flex-direction: column;
-    width: 100%;
-  }
-
-  .grade-buttons button {
-    width: 100%;
   }
 
   .results-stats {
